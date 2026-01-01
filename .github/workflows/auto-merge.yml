@@ -20,10 +20,9 @@ jobs:
           script: |
             const { owner, repo } = context.repo
             const run = context.payload.workflow_run
-
-            if (run.conclusion !== "success") {
+            const allowMerge = run.conclusion === "success"
+            if (!allowMerge) {
               console.log(`Security checks conclusion: ${run.conclusion}`)
-              return
             }
 
             const prs = run.pull_requests || []
@@ -135,7 +134,7 @@ jobs:
               return pr
             }
 
-            async function tryMerge(number) {
+            async function tryMerge(number, allowMerge) {
               const pr = await waitForMergeable(number)
               if (!pr || pr.merged) return
               if (pr.mergeable !== true || pr.mergeable_state !== "clean") {
@@ -143,6 +142,10 @@ jobs:
                   await postConflictComment(pr)
                 }
                 console.log(`PR #${number} not mergeable yet`)
+                return
+              }
+              if (!allowMerge) {
+                console.log(`Skipping merge for PR #${number}; checks not successful`)
                 return
               }
 
@@ -169,5 +172,5 @@ jobs:
             }
 
             for (const pr of prs) {
-              await tryMerge(pr.number)
+              await tryMerge(pr.number, allowMerge)
             }
